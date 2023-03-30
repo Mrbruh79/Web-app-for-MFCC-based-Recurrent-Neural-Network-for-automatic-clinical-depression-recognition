@@ -21,6 +21,10 @@ import cupy as cp
 import tensorflow.keras.optimizers
 import tensorflow as tf
 np.set_printoptions(threshold=sys.maxsize) 
+threshold = 0.5
+from tensorflow.keras.models import model_from_json
+
+args = sys.argv
 
 
 def MFCC_Preprocess(audio):
@@ -31,7 +35,7 @@ def MFCC_Preprocess(audio):
     step_size = 0.5  # seconds
     window_samples = int(window_length * fs)
     step_samples = int(step_size * fs)
-    print(len(data) , " ",len(data)/step_samples)
+    # print(len(data) , " ",len(data)/step_samples)
     # Define number of Mel-frequency bins
     n_mels = 24
 
@@ -88,9 +92,31 @@ def feature_extraction_kernel(segment,window_samples,fs,n_mels,n_ceps):
 
     # Obtain cepstral features
     cepstral_coefficients = cp.dot( cp.cos(cp.pi * cp.arange(n_mels) * cp.arange(n_ceps).reshape(-1, 1) / n_mels),kl_transform)
+    
     return cepstral_coefficients
 
-audio = AudioSegment.from_file(r"")
+audio = AudioSegment.from_file(args[1])
 proc = MFCC_Preprocess(audio)
-x = keras.models.load_model("my_model")
-[score,binary] = x.predict(proc)
+proc = tf.keras.preprocessing.sequence.pad_sequences(np.array([proc]), padding='pre')
+# print("here")
+
+json_file = open(r'./model.json', 'r')
+loaded_model_json = json_file.read()
+loaded_model = model_from_json(loaded_model_json)
+# load weights into new model
+loaded_model.load_weights(r"./mod.h5")
+optimizer = tensorflow.keras.optimizers.Adam(learning_rate=0.0015, decay=1e-6)
+loaded_model.compile(optimizer=optimizer, loss=['binary_crossentropy', 'sparse_categorical_crossentropy'],
+              metrics=['accuracy'])
+# loaded_model.summary()
+score = loaded_model.predict(proc, verbose=0)
+depression = False
+level = 0
+if(score[0][0]>threshold):
+    depression = 1
+else:
+    depression = 0
+
+level = score[1][0].argmax()
+
+print("{" + f'"depressed":{depression},"level":{level}' + "}")
