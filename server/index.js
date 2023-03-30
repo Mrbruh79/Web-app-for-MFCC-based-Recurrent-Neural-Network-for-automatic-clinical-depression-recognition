@@ -38,19 +38,7 @@ app.post('/audio', async (req, res) => {
          audioFile.mv(__dirname+'/uploads2/'+filename,(err)=>{
              console.log(err);
          })
-         let dataToSend;
-         const python = spawn('python', ['Model.py', `${uid}.wav`]);
-         python.stdout.on('data', function (data) {
-           console.log('Pipe data from python script ...');
-           dataToSend = JSON.parse(data);
-           console.log(dataToSend);
-          });
-          // in close event we are sure that stream from child process is closed
-          python.on('close', (code) => {
-          console.log(`child process close all stdio with code ${code}`);
-          // send data to browser
-       
-          });
+         res.send('Yes');
           
   } catch (err) {
     console.error(err);
@@ -64,7 +52,7 @@ app.listen(5000, () => {
   console.log('App listening at port 5000!');
 });
 
-app.post('/nigger',  async (req, res)=> {
+app.post('/python',  async (req, res)=> {
   try {
     const uid=req.body.uid;
     let datatoSend;
