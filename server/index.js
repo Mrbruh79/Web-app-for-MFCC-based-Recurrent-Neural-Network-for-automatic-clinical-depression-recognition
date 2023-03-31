@@ -35,10 +35,10 @@ app.post('/audio', async (req, res) => {
         const audioFile=req.files.audioFile;
         const filename=req.body.uid;
         console.log(audioFile);
-         audioFile.mv(__dirname+'/uploads2/'+filename,(err)=>{
+         audioFile.mv(__dirname+'/uploads/'+filename+'.wav',(err)=>{
              console.log(err);
          })
-         res.send('Yes');
+         res.status(200).send({filename: filename+'.wav', directory: 'uploads'});
           
   } catch (err) {
     console.error(err);
