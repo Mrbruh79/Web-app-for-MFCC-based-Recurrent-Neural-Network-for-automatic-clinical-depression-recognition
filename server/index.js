@@ -4,6 +4,7 @@ const fs = require('fs');
 const wav = require('wav'); 
 const app = express();
 const {spawn}  = require('child_process');
+const ffmpeg = require('fluent-ffmpeg');
 app.use(cors());
 const fileUpload = require('express-fileupload');
 
@@ -29,16 +30,41 @@ const spawnModel =  async (uid)=> {
 
 app.use(fileUpload());
 
+const ffmpegWebAtoWav = (filename)=> {
+  const ffmp = spawn('ffmpeg', ['-i', `${__dirname}/uploads/${filename}.weba`, `${__dirname}/uploads/${filename}.wav`]);
+  ffmp.stdout.on('data', (data)=> {
+    console.log("stdout: " + data);
+  });
+  ffmp.stderr.on('data', (data)=>{
+    console.log("stderr: " + data);
+  })
+  ffmp.on('close', ()=> {
+    console.log('fonwf');
+      res.status(200).send({filename: filename+'.weba', directory: 'uploads'}); 
+  });
+}
+
 app.post('/audio', async (req, res) => {
     try {
         console.log(req.files);
         const audioFile=req.files.audioFile;
         const filename=req.body.uid;
         console.log(audioFile);
-         audioFile.mv(__dirname+'/uploads/'+filename+'.wav',(err)=>{
-             console.log(err);
-         })
-         res.status(200).send({filename: filename+'.wav', directory: 'uploads'});
+         audioFile.mv(__dirname+'/uploads/'+filename+'.weba',(err)=>{
+          const ffmp = spawn('ffmpeg', ['-i', `${__dirname}/uploads/${filename}.weba`, `${__dirname}/uploads/${filename}.wav`]);
+          ffmp.stdout.on('data', (data)=> {
+            console.log("stdout: " + data);
+          });
+          ffmp.stderr.on('data', (data)=>{
+            console.log("stderr: " + data);
+          })
+          ffmp.on('close', ()=> {
+            console.log('fonwf');
+              res.status(200).send({filename: filename+'.wav', directory: 'uploads'}); 
+          });
+         });
+         console.log(filename);
+         
           
   } catch (err) {
     console.error(err);
@@ -56,8 +82,12 @@ app.post('/python',  async (req, res)=> {
   try {
     const uid=req.body.uid;
     let datatoSend;
+    console.log('Received post request');
+    console.log(uid);
+    
+    
 
-    const python = spawn('python', ['Model.py', `${uid}.wav`]);
+    const python = spawn("C:\\Users\\Restandsleep\\anaconda3\\python.exe", ['Model.py', `uploads/${uid}.weba`]);
     python.stdout.on('data', function (data) {
       console.log('Pipe data from python script ...');
       console.log(data);
@@ -65,7 +95,7 @@ app.post('/python',  async (req, res)=> {
      });
      // in close event we are sure that stream from child process is closed
      python.on('exit', (code,signal) => {
-     console.log(`child process sexit with code ${code}`);
+     console.log(`child process exit with code ${code}`);
      // send data to browser
       res.send(datatoSend);
      });

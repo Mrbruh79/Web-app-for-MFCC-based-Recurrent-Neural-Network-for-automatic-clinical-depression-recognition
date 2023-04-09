@@ -82,7 +82,7 @@ def feature_extraction_kernel(segment,window_samples,fs,n_mels,n_ceps):
     # Smooth the spectrum to emphasize perceptually meaningful frequencies
     fft_magnitude = cp.asarray(librosa.effects.harmonic(cp.asnumpy(dft_magnitude)))
         
-    mel_filter = cp.asarray(librosa.filters.mel(fs, window_samples, n_mels=n_mels))
+    mel_filter = cp.asarray(librosa.filters.mel(sr=fs, n_fft=window_samples, n_mels=n_mels))
         
     mel_spectrum = cp.dot(mel_filter, fft_magnitude)
     smoothed_spectrum = cp.log(mel_spectrum)
@@ -95,17 +95,19 @@ def feature_extraction_kernel(segment,window_samples,fs,n_mels,n_ceps):
     
     return cepstral_coefficients
 
-audio = AudioSegment.from_file(args[1])
+
+sys.path.append(r"C:\Users\Restandsleep\Downloads\Web-app-for-MFCC-based-Recurrent-Neural-Network-for-automatic-clinical-depression-recognition-main\server")
+audio = AudioSegment.from_file(r"uploads/300.wav")
 proc = MFCC_Preprocess(audio)
 proc = tf.keras.preprocessing.sequence.pad_sequences(np.array([proc]), padding='pre')
-# print("here")
+
 
 json_file = open(r'./model.json', 'r')
 loaded_model_json = json_file.read()
 loaded_model = model_from_json(loaded_model_json)
 # load weights into new model
 loaded_model.load_weights(r"./mod.h5")
-optimizer = tensorflow.keras.optimizers.Adam(learning_rate=0.0015, decay=1e-6)
+optimizer = tensorflow.keras.optimizers.legacy.Adam(learning_rate=0.0015, decay=1e-6)
 loaded_model.compile(optimizer=optimizer, loss=['binary_crossentropy', 'sparse_categorical_crossentropy'],
               metrics=['accuracy'])
 # loaded_model.summary()
