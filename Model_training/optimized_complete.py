@@ -152,7 +152,7 @@ for index,row in train_voice.iterrows():
         for aud in audiofiles:
             metrics = MFCC_Preprocess(aud)
             train_data = train_data.append(pd.DataFrame({"Audio":[metrics],"Binary":[row["PHQ8_Binary"]] ,"Score":[row["PHQ8_Score"]]}), ignore_index=True)
-train_data.to_csv(r'/kaggle/working/train.csv')
+train_data.to_csv(r'train.csv')
 
 # Making validation dataset
 dir = r"diac-dataset/{num}_P"
@@ -179,7 +179,7 @@ for index,row in dev_voice.iterrows():
         for aud in audiofiles:
             metrics = MFCC_Preprocess(aud)
             validation_data = validation_data.append(pd.DataFrame({"Audio":[metrics],"Binary":[row["PHQ8_Binary"]] ,"Score":[row["PHQ8_Score"]]}))
-validation_data.to_csv(r'/kaggle/working/validation.csv')  
+validation_data.to_csv(r'validation.csv')  
 
 #Making test dataset
 dir = r"/kaggle/input/diac-dataset/{num}_P"
@@ -230,6 +230,86 @@ for index,row in test_voice.iterrows():
         for aud in audiofiles:
             metrics = MFCC_Preprocess(aud)
             test_data = test_data.append(pd.DataFrame({"Audio":[metrics],"Binary":[full_split.loc[full_split['Participant_ID'] == row["participant_ID"]]["PHQ_Binary"]] ,"Score":[full_split.loc[full_split['Participant_ID'] == row["participant_ID"]]["PHQ_Score"]]}))
-test_data.to_csv(r'/kaggle/working/test.csv')
+test_data.to_csv(r'test.csv')
 
-  
+
+
+
+#Model Design code
+
+# Define input layer
+input_layer = Input(shape=(None, 60))
+
+# Define LSTM layers
+lstm_1 = LSTM(40, input_shape=(None, 60), activation='tanh', recurrent_activation='hard_sigmoid',
+              recurrent_dropout=0.2, kernel_initializer='glorot_uniform',
+              bias_regularizer=l1(0.001), return_sequences=True)(input_layer)
+batch_norm_1 = BatchNormalization()(lstm_1)
+
+lstm_2 = LSTM(30, activation='tanh', recurrent_activation='hard_sigmoid',
+              recurrent_dropout=0.2, kernel_initializer='glorot_uniform',
+              bias_regularizer=l1(0.001), return_sequences=True)(batch_norm_1)
+batch_norm_2 = BatchNormalization()(lstm_2)
+
+lstm_3 = LSTM(20, activation='tanh', recurrent_activation='hard_sigmoid',
+              recurrent_dropout=0.2, kernel_initializer='glorot_uniform',
+              bias_regularizer=l1(0.001))(batch_norm_2)
+batch_norm_3 = BatchNormalization()(lstm_3)
+
+ 
+
+# Define dense layers
+dense_1 = Dense(15, activation='tanh')(batch_norm_3)
+dense_2 = Dense(10, activation='tanh')(dense_1)
+
+# Define output layer for binary classification
+output_binary = Dense(1, activation='sigmoid', name='binary_output')(dense_2)
+
+# Define output layer for multi-class classification
+output_multi = Dense(24, activation='softmax', name='multi_output')(dense_2)
+
+# Create the model
+model = Model(inputs=input_layer, outputs=[output_binary, output_multi])
+
+# Compile the model
+optimizer = tensorflow.keras.optimizers.Adam(learning_rate=0.0015, decay=1e-6)
+model.compile(optimizer=optimizer, loss=['binary_crossentropy', 'sparse_categorical_crossentropy'],
+              metrics=['accuracy'])
+model.summary()
+
+
+
+#Data Reading
+def string_to_arr(string):
+    string = string.replace("\n ", ",").replace("  ", " ").replace("[ ", "[").replace(", ", ",").replace(" ", ",")
+    arr=ast.literal_eval(string)
+    arr=np.array(arr)
+    if(arr.shape[0]>1500):
+        print(arr.shape)
+    return arr
+
+#Training Dataset
+train_data=pd.read_csv(r"train.csv")
+train_data["Audio"] = train_data["Audio"].apply(lambda x: string_to_arr(x))
+train_data = train_data.sample(frac = 1)
+audio_data = tf.keras.preprocessing.sequence.pad_sequences(train_data["Audio"], padding='pre')
+binary_data = train_data['Binary'].to_numpy()
+score_data = train_data['Score'].to_numpy()
+#Validation Dataset
+validation_data=pd.read_csv(r"validation.csv")
+validation_data["Audio"] = validation_data["Audio"].apply(lambda x: string_to_arr(x))
+audio_data2 =tf.keras.preprocessing.sequence.pad_sequences(validation_data["Audio"], padding='pre')
+binary_data2 = validation_data['Binary'].to_numpy()
+score_data2 = validation_data['Score'].to_numpy()
+#Testing Dataset
+test_data=pd.read_csv(r"test.csv")
+test_data["Audio"] = test_data["Audio"].apply(lambda x: string_to_arr(x))
+audio_data3 =tf.keras.preprocessing.sequence.pad_sequences(test_data["Audio"], padding='pre')
+binary_data3 = validation_data['Binary'].to_numpy()
+score_data3 = validation_data['Score'].to_numpy()
+
+
+lr_reducer = opt.ReduceLROnPlateau(factor=0.1, patience=10, verbose=1)
+#Fit the model
+model.fit(x=audio_data, y=[binary_data, score_data],validation_data=(audio_data2, [binary_data2,score_data2]) ,batch_size=150, epochs=200 , callbacks=[lr_reducer])
+model.save_weights("model_weights.h5")
